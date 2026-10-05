@@ -1,0 +1,9 @@
+streamlit>=1.32
+streamlit-autorefresh
+pandas
+numpy
+requests
+pyotp
+smartapi-python
+logzero
+websocket-client
