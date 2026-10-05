@@ -16,7 +16,10 @@ import pandas as pd
 import requests
 
 IST = ZoneInfo("Asia/Kolkata")
-MASTER_URL = "https://margincalculator.angelbroking.com/OpenAPI_Files/files/OpenAPIScripMaster.json"
+MASTER_URLS = [
+    "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json",
+    "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json",
+]
 NIFTY_TOKEN = "99926000"
 
 DEFAULTS = dict(
@@ -115,9 +118,21 @@ class Scanner:
         today = datetime.now(IST).date()
         if self.tokens is not None and self.tokens_day == today:
             return
-        r = requests.get(MASTER_URL, timeout=120)
-        r.raise_for_status()
-        df = pd.DataFrame(r.json())
+        data, last = None, None
+        for url in MASTER_URLS * 2:          # try both domains, twice
+            try:
+                r = requests.get(url, timeout=120)
+                r.raise_for_status()
+                data = r.json()
+                if data:
+                    break
+            except Exception as e:
+                last = e
+                time.sleep(2)
+        if not data:
+            raise RuntimeError(f"Scrip master download failed: {last}")
+        df = pd.DataFrame(data)
+        del data
         df = df[(df["name"] == self.cfg["symbol"]) & (df["instrumenttype"] == "OPTIDX")
                 & (df["exch_seg"] == "NFO")].copy()
         df["exp"] = pd.to_datetime(df["expiry"], format="%d%b%Y")
@@ -403,3 +418,4 @@ class Scanner:
                 self.error = f"{type(e).__name__}: {e}"
                 self._log(f"ERROR {self.error}")
             time.sleep(max(5, self.cfg["scan_every"] - (time.time() - t0)))
+        
